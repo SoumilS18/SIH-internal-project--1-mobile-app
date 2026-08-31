@@ -111,33 +111,50 @@ export const BorderRadius = {
   full: 9999,
 };
 
+export const Gradients = {
+  primary: ['#1B4332', '#2D6A4F'] as const,
+  heroDark: ['#173024', '#0E1F17'] as const,
+  harvestGold: ['#D49A3D', '#E2AF5B'] as const,
+  emeraldGlow: ['#287A4B', '#52B788'] as const,
+  terracottaWarm: ['#C65D3B', '#E07A5F'] as const,
+  glassOverlay: ['rgba(255,255,255,0.85)', 'rgba(255,255,255,0.95)'] as const,
+};
+
 export const Shadows = {
   sm: {
     shadowColor: '#173024',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   base: {
     shadowColor: '#173024',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   md: {
     shadowColor: '#173024',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 5,
   },
   lg: {
     shadowColor: '#173024',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.16,
+    shadowRadius: 22,
+    elevation: 8,
+  },
+  glow: {
+    shadowColor: '#287A4B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
     elevation: 6,
   },
 };
+

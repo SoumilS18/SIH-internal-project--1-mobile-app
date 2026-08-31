@@ -8,7 +8,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { Colors, Spacing, Typography, BorderRadius, Shadows } from '@/constants/theme';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 interface AppHeaderProps {
@@ -40,18 +40,33 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={22} color={Colors.primary.dark} />
+            <Ionicons name="arrow-back" size={20} color={Colors.primary.dark} />
           </TouchableOpacity>
-        ) : null}
+        ) : (
+          <View style={styles.brandIconCircle}>
+            <Ionicons name="leaf" size={16} color={Colors.primary.main} />
+          </View>
+        )}
 
         <View style={styles.titleContainer}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {subtitle}
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={1}>
+              {title}
             </Text>
+            {!showBack && (
+              <View style={styles.liveIndicator}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>AI LIVE</Text>
+              </View>
+            )}
+          </View>
+          {subtitle ? (
+            <View style={styles.subtitleRow}>
+              <Ionicons name="location-sharp" size={11} color={Colors.accent.terracotta} />
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {subtitle}
+              </Text>
+            </View>
           ) : null}
         </View>
 
@@ -64,7 +79,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               onPress={() => router.push('/settings')}
               activeOpacity={0.75}
             >
-              <Ionicons name="globe-outline" size={14} color={Colors.primary.main} />
+              <Ionicons name="globe-outline" size={13} color={Colors.primary.main} />
               <Text style={styles.langText}>{languageOption.label}</Text>
             </TouchableOpacity>
           ) : null}
@@ -77,7 +92,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.neutral.background,
-    paddingBottom: Spacing.sm,
+    paddingBottom: Spacing.sm + 2,
     paddingHorizontal: Spacing.base,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral.borderLight,
@@ -86,12 +101,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 44,
+    minHeight: 46,
+    gap: Spacing.sm,
+  },
+  brandIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.primary.subtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary.subtle,
   },
   backButton: {
-    marginRight: Spacing.sm,
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.neutral.surfaceMuted,
     alignItems: 'center',
@@ -100,16 +125,49 @@ const styles = StyleSheet.create({
   titleContainer: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   title: {
     fontSize: Typography.fontSizes.lg,
     fontWeight: '800',
     color: Colors.primary.dark,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.status.successBg,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.status.successBorder,
+  },
+  liveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: Colors.status.success,
+  },
+  liveText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.status.success,
+    letterSpacing: 0.3,
+  },
+  subtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 1,
   },
   subtitle: {
     fontSize: Typography.fontSizes.xs,
     color: Colors.neutral.textSecondary,
-    marginTop: 1,
     fontWeight: '500',
   },
   rightContainer: {
@@ -120,16 +178,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.neutral.white,
-    paddingHorizontal: Spacing.sm + 2,
-    paddingVertical: Spacing.xs + 1,
+    paddingHorizontal: Spacing.sm + 4,
+    paddingVertical: Spacing.xs + 2,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
     borderColor: Colors.neutral.border,
-    gap: 4,
+    gap: 5,
+    ...Shadows.sm,
   },
   langText: {
     fontSize: Typography.fontSizes.xs,
-    fontWeight: '600',
-    color: Colors.neutral.textPrimary,
+    fontWeight: '700',
+    color: Colors.primary.dark,
   },
 });
+

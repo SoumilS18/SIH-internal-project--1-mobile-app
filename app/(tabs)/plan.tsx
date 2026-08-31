@@ -19,10 +19,19 @@ import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 import { AppHeader } from '@/components/common/AppHeader';
 import { WeekTimeline } from '@/components/plan/WeekTimeline';
 import { CropAllocationList } from '@/components/plan/CropAllocationList';
-import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import { getLocalizedCropName } from '@/i18n/cropNames';
-import type { FarmDecisionResponse, PlanProgress, DailyAction, CropAllocation } from '@/types/farm';
+import {
+  loadPlanExecutionState,
+  savePlanExecutionState,
+  calculatePlanProgress,
+  toggleTaskCompletion,
+  getAdjustedWeekPlan,
+} from '@/lib/planProgress';
+import { getSeasonWeeksCount } from '@/lib/seasonalActionPlans';
+import type { FarmDecisionResponse, DailyAction, CropAllocation } from '@/types/farm';
+import type { PlanExecutionState, PlanProgressInfo } from '@/types/planLifecycle';
 
 export default function PlanScreen() {
   const router = useRouter();
@@ -30,14 +39,20 @@ export default function PlanScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [decision, setDecision] = useState<FarmDecisionResponse | null>(null);
-  const [selectedWeek, setSelectedWeek] = useState(2);
-  const [progress, setProgress] = useState<PlanProgress>({
-    currentDay: 8,
-    currentWeek: 2,
-    totalWeeks: 8,
-    completedDays: [1, 2, 3, 4, 5, 6, 7],
-    delayedTasks: [],
+  const [selectedWeek, setSelectedWeek] = useState(1);
+  const [planState, setPlanState] = useState<PlanExecutionState | null>(null);
+  const [progressInfo, setProgressInfo] = useState<PlanProgressInfo>({
+    isStarted: false,
+    startDate: null,
+    currentDay: 1,
+    currentWeek: 1,
+    totalDays: 126,
+    totalWeeks: 18,
+    isCompleted: false,
     todayTask: null,
+    planStatus: 'NOT_STARTED',
+    statusLabelEn: 'Not Started',
+    statusLabelHi: 'प्रारंभ नहीं हुआ',
   });
 
   const loadPlanData = useCallback(async () => {
@@ -50,15 +65,20 @@ export default function PlanScreen() {
         setDecision(savedDecision);
       }
 
-      const savedProgress = await getItem<PlanProgress>(STORAGE_KEYS.PLAN_PROGRESS, null);
-      if (savedProgress) {
-        setProgress(savedProgress);
-        setSelectedWeek(savedProgress.currentWeek || 2);
-      }
+      const pState = await loadPlanExecutionState();
+      setPlanState(pState);
+
+      const season = (savedDecision?.request?.season as any) || 'Kharif';
+      const cropNames = savedDecision?.allocated_crops?.map((c) => c.crop_name) || [
+        savedDecision?.request?.primary_crop_id || 'Soybean',
+      ];
+      const pInfo = calculatePlanProgress(pState, season, cropNames, language as any);
+      setProgressInfo(pInfo);
+      setSelectedWeek(pInfo.currentWeek || 1);
     } catch (err) {
       console.warn('[Plan] Load error:', err);
     }
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     loadPlanData();
@@ -71,66 +91,58 @@ export default function PlanScreen() {
   };
 
   const handleToggleCompleteDay = async (dayNumber: number) => {
-    const isDone = progress.completedDays.includes(dayNumber);
-    const updated = isDone
-      ? progress.completedDays.filter((d: number) => d !== dayNumber)
-      : [...progress.completedDays, dayNumber];
+    if (!planState) return;
+    const updatedState = toggleTaskCompletion(planState, dayNumber);
+    setPlanState(updatedState);
+    await savePlanExecutionState(updatedState);
 
-    const updatedProgress: PlanProgress = {
-      ...progress,
-      completedDays: updated,
-    };
-
-    setProgress(updatedProgress);
-    await setItem(STORAGE_KEYS.PLAN_PROGRESS, updatedProgress);
+    const season = (decision?.request?.season as any) || 'Kharif';
+    const cropNames = decision?.allocated_crops?.map((c) => c.crop_name) || [
+      decision?.request?.primary_crop_id || 'Soybean',
+    ];
+    const updatedInfo = calculatePlanProgress(updatedState, season, cropNames, language as any);
+    setProgressInfo(updatedInfo);
   };
 
-  const allActions: DailyAction[] = decision?.calendar?.actions || [
-    {
-      day_number: 8,
-      week_number: 2,
-      title: 'Top-Dress Nitrogen & Bio-Stimulant',
-      description: 'Apply split dose of nitrogen (Urea / Bio-NPK) along the root zone before scheduled evening irrigation.',
-      category: 'nutrient',
-      critical: true,
-      inputs: [
-        { name: 'Bio-NPK Consortium', quantity_per_acre: 1.5, unit: 'liters' },
-        { name: 'Neem-Coated Urea', quantity_per_acre: 22, unit: 'kg' },
-      ],
-    },
-    {
-      day_number: 10,
-      week_number: 2,
-      title: 'Soil Moisture & Pest Scrutiny',
-      description: 'Check field corners for early stem borer infestation and inspect root aeration.',
-      category: 'monitoring',
-      critical: false,
-    },
-    {
-      day_number: 12,
-      week_number: 2,
-      title: 'Micronutrient Foliar Spray',
-      description: 'Foliar application of Zinc Sulphate and Boron to boost vegetative vigor.',
-      category: 'nutrient',
-      critical: false,
-    },
-    {
-      day_number: 14,
-      week_number: 2,
-      title: 'Supplemental Furrow Irrigation',
-      description: 'Light furrow watering to sustain root zone moisture ahead of forecast dry spell.',
-      category: 'irrigation',
-      critical: true,
-    },
+  const season = (decision?.request?.season as any) || 'Kharif';
+  const cropNames = decision?.allocated_crops?.map((c) => c.crop_name) || [
+    decision?.request?.primary_crop_id || 'Soybean',
   ];
+  const totalWeeks = getSeasonWeeksCount(season);
 
-  const actionsForSelectedWeek = allActions.filter(
-    (action: DailyAction) => action.week_number === selectedWeek
+  // Generate dynamic 7-day action plan for currently selected week
+  const currentWeekPlan = getAdjustedWeekPlan(
+    season,
+    selectedWeek,
+    language as any,
+    cropNames,
+    planState?.adjustments
   );
+
+  const actionsForSelectedWeek: DailyAction[] = currentWeekPlan.days.map((dayItem) => ({
+    day_number: dayItem.dayOfSeason,
+    week_number: selectedWeek,
+    title: dayItem.title,
+    description: dayItem.desc,
+    category: (dayItem.category === 'prep'
+      ? 'monitoring'
+      : dayItem.category === 'protection'
+      ? 'pest'
+      : dayItem.category) as any,
+    critical: dayItem.category === 'irrigation' || dayItem.category === 'protection' || dayItem.category === 'sowing',
+    inputs:
+      dayItem.category === 'nutrient'
+        ? [
+            { name: 'Neem-Coated Urea / Bio-NPK', quantity_per_acre: 25, unit: 'kg' },
+            { name: 'Zinc Sulphate', quantity_per_acre: 5, unit: 'kg' },
+          ]
+        : dayItem.category === 'protection'
+        ? [{ name: 'Neem Oil (1500 ppm)', quantity_per_acre: 1, unit: 'L' }]
+        : [],
+  }));
 
   const cropRaw = decision?.request.primary_crop_id || decision?.allocated_crops?.[0]?.crop_name || 'soybean';
   const localizedCrop = getLocalizedCropName(cropRaw, language);
-  const totalWeeks = decision?.calendar?.total_weeks || 8;
 
   const cropAllocations: CropAllocation[] =
     decision?.allocations ||
@@ -196,8 +208,8 @@ export default function PlanScreen() {
         <WeekTimeline
           totalWeeks={totalWeeks}
           selectedWeek={selectedWeek}
-          currentDay={progress.currentDay}
-          completedDays={progress.completedDays}
+          currentDay={progressInfo.currentDay}
+          completedDays={planState?.completedDays || []}
           actionsForWeek={actionsForSelectedWeek}
           onSelectWeek={(w) => setSelectedWeek(w)}
           onToggleCompleteDay={handleToggleCompleteDay}

@@ -32,6 +32,7 @@ import {
   UNIVERSAL_OBSERVATIONS,
   getContextualTaskChecklist,
 } from '@/lib/contextualChecklists';
+import { getSeasonWeeksCount } from '@/lib/seasonalActionPlans';
 import { AutonomousSentinel } from '@/services/autonomousSentinel';
 import type { FarmDecisionResponse } from '@/types/farm';
 import type { PlanExecutionState, PlanProgressInfo, FarmerObservationLog } from '@/types/planLifecycle';
@@ -75,15 +76,15 @@ export default function ObservationsScreen() {
     : {
         isStarted: false,
         startDate: null,
-        currentDay: 8,
-        currentWeek: 2,
-        totalDays: 126,
-        totalWeeks: 8,
+        currentDay: 1,
+        currentWeek: 1,
+        totalDays: getSeasonWeeksCount(decision?.request?.season || 'Kharif') * 7,
+        totalWeeks: getSeasonWeeksCount(decision?.request?.season || 'Kharif'),
         isCompleted: false,
         todayTask: null,
-        planStatus: 'ACTIVE',
-        statusLabelEn: 'Active',
-        statusLabelHi: 'सक्रिय',
+        planStatus: 'NOT_STARTED',
+        statusLabelEn: 'Not Started',
+        statusLabelHi: 'प्रारंभ नहीं हुआ',
       };
 
   const primaryCrop =

@@ -28,24 +28,26 @@ export const VoiceBar: React.FC<VoiceBarProps> = ({
   const { t } = useLanguage();
 
   const quickQuestions = [
-    t('voice.quick1') || 'Should I irrigate today?',
-    t('voice.quick2') || 'Is rain expected tomorrow?',
-    t('voice.quick3') || 'What fertilizer should I apply next?',
-    t('voice.quick4') || 'How to prevent pest infestation?',
+    { icon: 'water-outline', text: t('voice.quick1') || 'Should I irrigate today?' },
+    { icon: 'cloud-outline', text: t('voice.quick2') || 'Is rain expected tomorrow?' },
+    { icon: 'flask-outline', text: t('voice.quick3') || 'What fertilizer should I apply next?' },
+    { icon: 'shield-checkmark-outline', text: t('voice.quick4') || 'How to prevent pest infestation?' },
   ];
 
   return (
     <View style={styles.container}>
       {/* Search & Voice Bar */}
       <TouchableOpacity
-        activeOpacity={0.85}
+        activeOpacity={0.88}
         onPress={onTapMic}
         style={styles.searchBar}
       >
         <View style={styles.leftContent}>
-          <Ionicons name="sparkles" size={16} color={Colors.primary.main} />
+          <View style={styles.sparkleIconWrapper}>
+            <Ionicons name="sparkles" size={15} color={Colors.primary.main} />
+          </View>
           <Text style={styles.placeholderText}>
-            Ask AgriOptima anything about your farm...
+            Ask AgriOptima anything in Hindi or English...
           </Text>
         </View>
 
@@ -64,10 +66,11 @@ export const VoiceBar: React.FC<VoiceBarProps> = ({
           <TouchableOpacity
             key={idx}
             activeOpacity={0.75}
-            onPress={() => onSelectQuickQuestion(q)}
+            onPress={() => onSelectQuickQuestion(q.text)}
             style={styles.chip}
           >
-            <Text style={styles.chipText}>{q}</Text>
+            <Ionicons name={q.icon as any} size={12} color={Colors.primary.main} />
+            <Text style={styles.chipText}>{q.text}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -81,16 +84,16 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     backgroundColor: Colors.neutral.white,
-    borderRadius: BorderRadius.base,
+    borderRadius: BorderRadius.lg,
     paddingLeft: Spacing.md,
-    paddingRight: Spacing.xs + 2,
-    paddingVertical: Spacing.xs + 2,
+    paddingRight: Spacing.xs + 3,
+    paddingVertical: Spacing.xs + 3,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: Colors.neutral.border,
-    ...Shadows.sm,
+    borderWidth: 1.5,
+    borderColor: Colors.primary.subtle,
+    ...Shadows.base,
   },
   leftContent: {
     flexDirection: 'row',
@@ -98,35 +101,49 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     flex: 1,
   },
-  placeholderText: {
-    fontSize: Typography.fontSizes.sm,
-    color: Colors.neutral.textMuted,
-    fontWeight: '500',
-    flex: 1,
-  },
-  micButton: {
-    width: 38,
-    height: 38,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.primary.main,
+  sparkleIconWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primary.subtle,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  placeholderText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.neutral.textSecondary,
+    fontWeight: '600',
+    flex: 1,
+  },
+  micButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.base,
+    backgroundColor: Colors.primary.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.glow,
+  },
   chipsContainer: {
     paddingVertical: Spacing.sm,
-    gap: Spacing.xs + 2,
+    gap: Spacing.xs + 3,
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: Colors.neutral.white,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
+    paddingVertical: Spacing.xs + 3,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
     borderColor: Colors.neutral.border,
+    ...Shadows.sm,
   },
   chipText: {
     fontSize: Typography.fontSizes.xs + 1,
-    color: Colors.neutral.textSecondary,
-    fontWeight: '600',
+    color: Colors.neutral.textPrimary,
+    fontWeight: '700',
   },
 });
+

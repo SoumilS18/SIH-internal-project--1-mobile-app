@@ -7,7 +7,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { Colors, Spacing, Typography, BorderRadius, Shadows } from '@/constants/theme';
 import type { SentinelAnalysisResult } from '@/types/farm';
 
 interface SentinelAlertCardProps {
@@ -31,21 +31,40 @@ export const SentinelAlertCard: React.FC<SentinelAlertCardProps> = ({
   if (!isAlert) {
     return (
       <TouchableOpacity
-        activeOpacity={0.8}
+        activeOpacity={0.85}
         onPress={onPressDetails}
         style={styles.stableContainer}
       >
         <View style={styles.stableIconCircle}>
-          <Ionicons name="shield-checkmark" size={20} color={Colors.primary.main} />
+          <Ionicons name="shield-checkmark" size={20} color={Colors.status.success} />
         </View>
         <View style={styles.stableTextContainer}>
           <View style={styles.statusRow}>
             <Text style={styles.stableHeading}>Farm Conditions Stable</Text>
-            <View style={styles.liveDot} />
+            <View style={styles.liveIndicator}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>SENTINEL ACTIVE</Text>
+            </View>
           </View>
           <Text style={styles.stableDesc}>
             Weather, soil moisture, and pest risks are within optimal range today.
           </Text>
+
+          {/* Quick telemetry chips */}
+          <View style={styles.miniChipsRow}>
+            <View style={styles.miniChip}>
+              <Ionicons name="thermometer-outline" size={11} color={Colors.weather.temp} />
+              <Text style={styles.miniChipText}>28°C Clear</Text>
+            </View>
+            <View style={styles.miniChip}>
+              <Ionicons name="water-outline" size={11} color={Colors.weather.rainy} />
+              <Text style={styles.miniChipText}>62% Soil Moisture</Text>
+            </View>
+            <View style={styles.miniChip}>
+              <Ionicons name="bug-outline" size={11} color={Colors.status.success} />
+              <Text style={styles.miniChipText}>Low Pest Risk</Text>
+            </View>
+          </View>
         </View>
         <Ionicons name="chevron-forward" size={18} color={Colors.neutral.textMuted} />
       </TouchableOpacity>
@@ -63,7 +82,10 @@ export const SentinelAlertCard: React.FC<SentinelAlertCardProps> = ({
           <Ionicons name="warning" size={14} color={Colors.accent.ochre} />
           <Text style={styles.alertBadgeText}>ATTENTION NEEDED</Text>
         </View>
-        <Text style={styles.timeTag}>Live Sentinel</Text>
+        <View style={styles.liveAlertTag}>
+          <View style={styles.liveAlertDot} />
+          <Text style={styles.timeTag}>Live Sentinel</Text>
+        </View>
       </View>
 
       <Text style={styles.alertHeadline}>
@@ -90,21 +112,24 @@ export const SentinelAlertCard: React.FC<SentinelAlertCardProps> = ({
 const styles = StyleSheet.create({
   stableContainer: {
     backgroundColor: Colors.neutral.white,
-    borderRadius: BorderRadius.base,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.base,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.neutral.border,
     gap: Spacing.md,
+    ...Shadows.base,
   },
   stableIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.primary.subtle,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.status.successBg,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.status.successBorder,
   },
   stableTextContainer: {
     flex: 1,
@@ -112,31 +137,68 @@ const styles = StyleSheet.create({
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   stableHeading: {
-    fontSize: Typography.fontSizes.base - 1,
-    fontWeight: '700',
+    fontSize: Typography.fontSizes.base - 0.5,
+    fontWeight: '800',
     color: Colors.primary.dark,
+    letterSpacing: -0.2,
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.status.successBg,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: BorderRadius.full,
   },
   liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: Colors.status.success,
   },
+  liveText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.status.success,
+    letterSpacing: 0.3,
+  },
   stableDesc: {
-    fontSize: Typography.fontSizes.xs + 1,
+    fontSize: Typography.fontSizes.xs + 0.5,
     color: Colors.neutral.textSecondary,
     lineHeight: 17,
   },
+  miniChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  miniChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.neutral.surfaceMuted,
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: BorderRadius.sm,
+  },
+  miniChipText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: Colors.neutral.textSecondary,
+  },
   alertContainer: {
     backgroundColor: Colors.accent.ochreBg,
-    borderRadius: BorderRadius.base,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.base,
     borderWidth: 1,
     borderColor: Colors.accent.ochreBorder,
+    ...Shadows.base,
   },
   alertHeader: {
     flexDirection: 'row',
@@ -161,23 +223,35 @@ const styles = StyleSheet.create({
     color: Colors.accent.ochre,
     letterSpacing: 0.5,
   },
+  liveAlertTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  liveAlertDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.accent.ochre,
+  },
   timeTag: {
     fontSize: Typography.fontSizes.xs,
-    fontWeight: '600',
-    color: Colors.neutral.textMuted,
+    fontWeight: '700',
+    color: Colors.accent.ochre,
   },
   alertHeadline: {
     fontSize: Typography.fontSizes.base,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.neutral.textPrimary,
     lineHeight: 22,
     marginBottom: Spacing.sm,
+    letterSpacing: -0.2,
   },
   recommendationBox: {
     backgroundColor: Colors.neutral.white,
     padding: Spacing.sm + 2,
-    borderRadius: BorderRadius.sm,
-    borderLeftWidth: 3,
+    borderRadius: BorderRadius.sm + 2,
+    borderLeftWidth: 3.5,
     borderLeftColor: Colors.accent.terracotta,
     marginBottom: Spacing.sm,
   },
@@ -192,6 +266,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSizes.xs + 1,
     color: Colors.neutral.textPrimary,
     lineHeight: 18,
+    fontWeight: '500',
   },
   alertFooter: {
     flexDirection: 'row',
@@ -206,3 +281,4 @@ const styles = StyleSheet.create({
     color: Colors.accent.terracotta,
   },
 });
+

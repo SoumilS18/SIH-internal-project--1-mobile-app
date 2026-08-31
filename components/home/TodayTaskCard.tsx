@@ -18,6 +18,8 @@ interface TodayTaskCardProps {
   dayNumber: number;
   isCompleted: boolean;
   cropName: string;
+  isStarted?: boolean;
+  onStartPlan?: () => void;
   onComplete: () => void;
   onDelayOrReport: () => void;
   onPressDetails?: () => void;
@@ -28,6 +30,8 @@ export const TodayTaskCard: React.FC<TodayTaskCardProps> = ({
   dayNumber,
   isCompleted,
   cropName,
+  isStarted = true,
+  onStartPlan,
   onComplete,
   onDelayOrReport,
   onPressDetails,
@@ -68,6 +72,15 @@ export const TodayTaskCard: React.FC<TodayTaskCardProps> = ({
 
   return (
     <View style={[styles.heroCard, isCompleted ? styles.completedCard : undefined]}>
+      {/* Top Accent Gradient/Color Strip */}
+      <View
+        style={[
+          styles.accentStrip,
+          task.critical ? styles.criticalStrip : styles.normalStrip,
+          isCompleted ? styles.completedStrip : undefined,
+        ]}
+      />
+
       {/* Top Meta Header */}
       <View style={styles.headerRow}>
         <View style={styles.dayBadge}>
@@ -85,17 +98,22 @@ export const TodayTaskCard: React.FC<TodayTaskCardProps> = ({
             />
           }
         />
-        {task.critical ? (
+        {!isStarted ? (
+          <View style={styles.previewPill}>
+            <Ionicons name="flag-outline" size={11} color={Colors.primary.main} />
+            <Text style={styles.previewText}>READY TO START</Text>
+          </View>
+        ) : task.critical ? (
           <View style={styles.criticalPill}>
-            <Ionicons name="alert-circle" size={12} color={Colors.accent.terracotta} />
-            <Text style={styles.criticalText}>CRITICAL</Text>
+            <Ionicons name="flash" size={11} color={Colors.accent.terracotta} />
+            <Text style={styles.criticalText}>TIME SENSITIVE</Text>
           </View>
         ) : null}
       </View>
 
       {/* Main Task Title & Description */}
       <TouchableOpacity
-        activeOpacity={0.8}
+        activeOpacity={0.85}
         onPress={onPressDetails}
         style={styles.contentSection}
       >
@@ -109,24 +127,39 @@ export const TodayTaskCard: React.FC<TodayTaskCardProps> = ({
 
       {/* Resource Requirement Tags */}
       {task.inputs && task.inputs.length > 0 ? (
-        <View style={styles.inputsRow}>
-          <Text style={styles.inputsLabel}>Required:</Text>
-          {task.inputs.map((inp: DailyActionInput, idx: number) => (
-            <View key={idx} style={styles.inputChip}>
-              <Text style={styles.inputChipText}>
-                {inp.name} ({inp.quantity_per_acre} {inp.unit}/ac)
-              </Text>
-            </View>
-          ))}
+        <View style={styles.inputsContainer}>
+          <Text style={styles.inputsLabel}>FIELD INPUTS REQUIRED:</Text>
+          <View style={styles.inputsGrid}>
+            {task.inputs.map((inp: DailyActionInput, idx: number) => (
+              <View key={idx} style={styles.inputChip}>
+                <Ionicons name="cube-outline" size={12} color={Colors.primary.main} />
+                <Text style={styles.inputChipText}>
+                  <Text style={styles.inputChipBold}>{inp.name}: </Text>
+                  {inp.quantity_per_acre} {inp.unit}/acre
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
       ) : null}
 
       {/* Action Footer */}
       <View style={styles.actionFooter}>
-        {isCompleted ? (
+        {!isStarted ? (
+          <Button
+            title="Start Farm Plan (Day 1)"
+            onPress={onStartPlan || onComplete}
+            variant="primary"
+            size="md"
+            icon={<Ionicons name="play" size={18} color={Colors.neutral.white} />}
+          />
+        ) : isCompleted ? (
           <View style={styles.completedBanner}>
-            <Ionicons name="checkmark-circle" size={20} color={Colors.status.success} />
-            <Text style={styles.completedText}>Completed for Today</Text>
+            <Ionicons name="checkmark-circle" size={22} color={Colors.status.success} />
+            <View>
+              <Text style={styles.completedText}>Completed for Today</Text>
+              <Text style={styles.completedSub}>Logged to crop execution timeline</Text>
+            </View>
           </View>
         ) : (
           <View style={styles.buttonGroup}>
@@ -136,7 +169,7 @@ export const TodayTaskCard: React.FC<TodayTaskCardProps> = ({
               variant="primary"
               size="md"
               style={styles.completeBtn}
-              icon={<Ionicons name="checkmark-sharp" size={18} color={Colors.neutral.white} />}
+              icon={<Ionicons name="checkmark-done" size={18} color={Colors.neutral.white} />}
             />
             <TouchableOpacity
               style={styles.problemBtn}
@@ -144,7 +177,7 @@ export const TodayTaskCard: React.FC<TodayTaskCardProps> = ({
               activeOpacity={0.7}
             >
               <Ionicons name="time-outline" size={16} color={Colors.neutral.textSecondary} />
-              <Text style={styles.problemBtnText}>Delay / Issue</Text>
+              <Text style={styles.problemBtnText}>Delay</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -160,10 +193,28 @@ const styles = StyleSheet.create({
     padding: Spacing.base + 2,
     borderWidth: 1,
     borderColor: Colors.neutral.border,
+    overflow: 'hidden',
+    position: 'relative',
     ...Shadows.md,
   },
+  accentStrip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+  },
+  normalStrip: {
+    backgroundColor: Colors.primary.main,
+  },
+  criticalStrip: {
+    backgroundColor: Colors.accent.terracotta,
+  },
+  completedStrip: {
+    backgroundColor: Colors.status.success,
+  },
   completedCard: {
-    backgroundColor: Colors.status.successBg + '40',
+    backgroundColor: Colors.status.successBg + '30',
     borderColor: Colors.status.successBorder,
   },
   headerRow: {
@@ -171,32 +222,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
     marginBottom: Spacing.md,
+    marginTop: 2,
   },
   dayBadge: {
     backgroundColor: Colors.primary.dark,
-    paddingHorizontal: Spacing.sm + 2,
-    paddingVertical: Spacing.xs - 1,
+    paddingHorizontal: Spacing.sm + 4,
+    paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
   },
   dayBadgeText: {
     color: Colors.neutral.white,
     fontSize: Typography.fontSizes.xs,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
+  },
+  previewPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.primary.subtle,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: Spacing.xs - 1,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.primary.subtle,
+  },
+  previewText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: Colors.primary.dark,
+    letterSpacing: 0.4,
   },
   criticalPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
     backgroundColor: Colors.accent.terracottaBg,
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.sm + 2,
     paddingVertical: Spacing.xs - 1,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
     borderColor: Colors.accent.terracottaBorder,
   },
   criticalText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '800',
     color: Colors.accent.terracotta,
     letterSpacing: 0.4,
@@ -205,45 +274,58 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   taskTitle: {
-    fontSize: Typography.fontSizes.xl - 1,
+    fontSize: Typography.fontSizes.xl,
     fontWeight: '800',
     color: Colors.neutral.textPrimary,
     lineHeight: 26,
     marginBottom: 6,
+    letterSpacing: -0.2,
   },
   taskTitleCompleted: {
     color: Colors.status.success,
+    textDecorationLine: 'line-through',
   },
   taskDescription: {
     fontSize: Typography.fontSizes.sm + 1,
     color: Colors.neutral.textSecondary,
-    lineHeight: 20,
+    lineHeight: 21,
   },
-  inputsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingTop: Spacing.sm,
+  inputsContainer: {
+    paddingTop: Spacing.sm + 2,
     borderTopWidth: 1,
     borderTopColor: Colors.neutral.borderLight,
     marginBottom: Spacing.base,
+    gap: Spacing.xs,
   },
   inputsLabel: {
-    fontSize: Typography.fontSizes.xs,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '800',
     color: Colors.neutral.textMuted,
+    letterSpacing: 0.5,
+  },
+  inputsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs + 2,
   },
   inputChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: Colors.neutral.surfaceMuted,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: 5,
     borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.neutral.borderLight,
   },
   inputChipText: {
     fontSize: Typography.fontSizes.xs,
+    color: Colors.neutral.textSecondary,
+  },
+  inputChipBold: {
+    fontWeight: '700',
     color: Colors.neutral.textPrimary,
-    fontWeight: '500',
   },
   actionFooter: {
     marginTop: Spacing.xs,
@@ -262,7 +344,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     paddingVertical: Spacing.md - 2,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.md + 2,
     borderRadius: BorderRadius.base,
     backgroundColor: Colors.neutral.surfaceMuted,
     borderWidth: 1,
@@ -271,15 +353,15 @@ const styles = StyleSheet.create({
   },
   problemBtnText: {
     fontSize: Typography.fontSizes.sm,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.neutral.textSecondary,
   },
   completedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm + 2,
+    gap: Spacing.sm + 2,
+    paddingVertical: Spacing.sm + 4,
+    paddingHorizontal: Spacing.base,
     backgroundColor: Colors.status.successBg,
     borderRadius: BorderRadius.base,
     borderWidth: 1,
@@ -287,8 +369,13 @@ const styles = StyleSheet.create({
   },
   completedText: {
     fontSize: Typography.fontSizes.base - 1,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.status.success,
+  },
+  completedSub: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.status.success + 'CC',
+    marginTop: 1,
   },
   emptyCard: {
     backgroundColor: Colors.neutral.white,
@@ -297,19 +384,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.neutral.border,
+    ...Shadows.base,
   },
   emptyIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: Colors.primary.subtle,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,
   },
   emptyTitle: {
-    fontSize: Typography.fontSizes.md,
-    fontWeight: '700',
+    fontSize: Typography.fontSizes.md + 1,
+    fontWeight: '800',
     color: Colors.primary.dark,
     marginBottom: 4,
   },
@@ -319,3 +407,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

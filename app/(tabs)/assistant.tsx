@@ -23,6 +23,7 @@ import { AppHeader } from '@/components/common/AppHeader';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getItem, STORAGE_KEYS } from '@/lib/storage';
 import { loadPlanExecutionState, calculatePlanProgress } from '@/lib/planProgress';
+import { getSeasonWeeksCount } from '@/lib/seasonalActionPlans';
 import { askAgriOptimaAI, speakText, stopSpeaking, VoiceAgentResponse } from '@/services/voiceAgentService';
 import { getLocalizedCropName } from '@/i18n/cropNames';
 import type { FarmDecisionResponse } from '@/types/farm';
@@ -46,10 +47,108 @@ export default function AssistantScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speechTranscript, setSpeechTranscript] = useState('');
   const [decision, setDecision] = useState<FarmDecisionResponse | null>(null);
   const [planState, setPlanState] = useState<PlanExecutionState | null>(null);
 
   const scrollViewRef = useRef<ScrollView>(null);
+  const recognitionRef = useRef<any>(null);
+  const transcriptBufferRef = useRef<string>('');
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = isHi ? 'hi-IN' : 'en-IN';
+
+        recognition.onstart = () => {
+          setIsListening(true);
+          transcriptBufferRef.current = '';
+          setSpeechTranscript('');
+        };
+
+        recognition.onresult = (event: any) => {
+          let currentTranscript = '';
+          for (let i = 0; i < event.results.length; i++) {
+            currentTranscript += event.results[i][0].transcript;
+          }
+          if (currentTranscript) {
+            transcriptBufferRef.current = currentTranscript;
+            setInputQuery(currentTranscript);
+            setSpeechTranscript(currentTranscript);
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn('[SpeechRecognition] Error:', event.error);
+          setIsListening(false);
+        };
+
+        recognition.onend = () => {
+          // If ended externally without user stopping, sync state
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recognition;
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+    };
+  }, [isHi]);
+
+  const toggleListening = () => {
+    if (isSpeaking) {
+      stopSpeaking();
+      setIsSpeaking(false);
+    }
+
+    if (isListening) {
+      // User tapped mic AGAIN to stop & send question
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+      setIsListening(false);
+      const textToSubmit = (transcriptBufferRef.current || inputQuery).trim();
+      if (textToSubmit) {
+        handleSend(textToSubmit);
+      }
+    } else {
+      // User tapped mic to START speaking
+      setInputQuery('');
+      setSpeechTranscript('');
+      transcriptBufferRef.current = '';
+
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.lang = isHi ? 'hi-IN' : 'en-IN';
+          recognitionRef.current.start();
+          setIsListening(true);
+        } catch (err) {
+          console.warn('[SpeechRecognition] Start error:', err);
+        }
+      } else {
+        // Fallback simulation for browsers without Web Speech API
+        setIsListening(true);
+        const sampleQuery = isHi ? 'क्या आज खेत में सिंचाई करनी चाहिए?' : 'Should I irrigate the farm today?';
+        setInputQuery(sampleQuery);
+        transcriptBufferRef.current = sampleQuery;
+      }
+    }
+  };
 
   // Load farm telemetry context
   useEffect(() => {
@@ -68,8 +167,8 @@ export default function AssistantScreen() {
           id: 'welcome-1',
           sender: 'assistant',
           text: isHi
-            ? `नमस्कार! मैं आपका एग्रीऑप्टिमा एआई कृषि सहायक हूँ। मैं आपके ${districtDisplay} के खेत (${cropDisplay}) की लाइव मिट्टी और मौसम जानकारी के आधार पर सलाह दे सकता हूँ। आप क्या पूछना चाहते हैं?`
-            : `Hello! I am your AgriOptima AI Farm Assistant. I am grounded in your ${districtDisplay} telemetry and ${cropDisplay} plan. What would you like to know today?`,
+            ? `नमस्कार! मैं आपका एग्रीऑप्टिमा एआई कृषि सहायक हूँ। मैं आपके ${districtDisplay} के खेत (${cropDisplay}) की लाइव मिट्टी और मौसम जानकारी के आधार पर सलाह दे सकता हूँ। आप माइक दबाकर सीधे बोल सकते हैं या प्रश्न लिख सकते हैं।`
+            : `Hello! I am your AgriOptima AI Farm Assistant. I am grounded in your ${districtDisplay} telemetry and ${cropDisplay} plan. Tap the mic to speak directly or type your question below.`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           source: 'system',
         },
@@ -90,6 +189,13 @@ export default function AssistantScreen() {
     const textToSend = (queryText || inputQuery).trim();
     if (!textToSend || loading) return;
 
+    if (isListening && recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      setIsListening(false);
+    }
+
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
@@ -99,23 +205,26 @@ export default function AssistantScreen() {
 
     setMessages((prev) => [...prev, userMsg]);
     setInputQuery('');
+    setSpeechTranscript('');
     setLoading(true);
 
+    const season = (decision?.request?.season as any) || 'Kharif';
     const allocatedCrops = decision?.allocations?.map((c) => c.crop_id) || [];
+    const totalSeasonWeeks = getSeasonWeeksCount(season);
     const progress: PlanProgressInfo = planState
-      ? calculatePlanProgress(planState, decision?.request?.season || 'Kharif', allocatedCrops, language as any)
+      ? calculatePlanProgress(planState, season, allocatedCrops, language as any)
       : {
           isStarted: false,
           startDate: null,
-          currentDay: 8,
-          currentWeek: 2,
-          totalDays: 126,
-          totalWeeks: 8,
+          currentDay: 1,
+          currentWeek: 1,
+          totalDays: totalSeasonWeeks * 7,
+          totalWeeks: totalSeasonWeeks,
           isCompleted: false,
           todayTask: null,
-          planStatus: 'ACTIVE',
-          statusLabelEn: 'Active',
-          statusLabelHi: 'सक्रिय',
+          planStatus: 'NOT_STARTED',
+          statusLabelEn: 'Not Started',
+          statusLabelHi: 'प्रारंभ नहीं हुआ',
         };
 
     const history = messages.slice(-4).map((m) => ({
@@ -193,19 +302,27 @@ export default function AssistantScreen() {
 
   const quickQuestions = [
     isHi ? 'क्या आज सिंचाई करनी चाहिए?' : 'Should I irrigate today?',
-    isHi ? 'कल बारिश की क्या संभावना है?' : 'Is rain expected tomorrow?',
-    isHi ? 'अगली खाद कब डालनी है?' : 'What fertilizer to apply next?',
     isHi ? 'कीट नियंत्रण के उपाय क्या हैं?' : 'How to prevent pests?',
+    isHi ? 'अगली खाद कितनी मात्रा में डालनी है?' : 'What fertilizer dosage to apply?',
+    isHi ? 'कल बारिश की क्या संभावना है?' : 'Is rain expected tomorrow?',
   ];
 
   const primaryCrop = decision?.request.primary_crop_id || 'soybean';
   const localizedCrop = getLocalizedCropName(primaryCrop, language);
+  const season = (decision?.request?.season as any) || 'Kharif';
+  const totalSeasonWeeks = getSeasonWeeksCount(season);
+  const currentProgress = planState
+    ? calculatePlanProgress(planState, season, [primaryCrop], language as any)
+    : null;
+  const currentDayDisplay = currentProgress?.currentDay || 1;
+  const currentWeekDisplay = currentProgress?.currentWeek || 1;
+  const moistureDisplay = decision?.risk?.soil_moisture_status || 'Optimal Moisture';
 
   return (
     <View style={styles.container}>
       <AppHeader
         title="AgriOptima AI"
-        subtitle="Intelligent Farm Assistant"
+        subtitle="Voice & Crop Intelligence"
       />
 
       {/* Grounded Context Header Pill */}
@@ -213,8 +330,32 @@ export default function AssistantScreen() {
         <View style={styles.contextPill}>
           <Ionicons name="sparkles" size={14} color={Colors.primary.main} />
           <Text style={styles.contextText} numberOfLines={1}>
-            Grounded in {decision.request.district_name} · {localizedCrop} · Day 8 · Optimal Moisture
+            Grounded in {decision.request.district_name} · {localizedCrop} · Day {currentDayDisplay} (Wk {currentWeekDisplay}/{totalSeasonWeeks}) · {moistureDisplay}
           </Text>
+        </View>
+      ) : null}
+
+      {/* Active Voice Listening Banner */}
+      {isListening ? (
+        <View style={styles.listeningBanner}>
+          <View style={styles.listeningPulseCircle}>
+            <Ionicons name="mic" size={20} color={Colors.neutral.white} />
+          </View>
+          <View style={styles.listeningTextWrapper}>
+            <Text style={styles.listeningTitle}>
+              {isHi ? 'सुन रहा हूँ... बोलिए (Listening...)' : 'Listening... Speak your question now'}
+            </Text>
+            <Text style={styles.listeningSub}>
+              {speechTranscript || (isHi ? 'अपनी भाषा (हिंदी / अंग्रेजी) में पूछें' : 'Speak in English or Hindi')}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.stopListeningBtn}
+            onPress={toggleListening}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.stopListeningText}>{isHi ? 'पूर्ण' : 'Done'}</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
 
@@ -292,7 +433,7 @@ export default function AssistantScreen() {
           {loading ? (
             <View style={styles.loadingRow}>
               <ActivityIndicator size="small" color={Colors.primary.main} />
-              <Text style={styles.loadingText}>AgriOptima is evaluating telemetry...</Text>
+              <Text style={styles.loadingText}>AgriOptima is calculating field telemetry...</Text>
             </View>
           ) : null}
         </ScrollView>
@@ -318,12 +459,28 @@ export default function AssistantScreen() {
           </ScrollView>
         </View>
 
-        {/* Input Bar */}
+        {/* Enhanced Input Bar with Direct Mic Toggle Button */}
         <View style={styles.inputContainer}>
+          <TouchableOpacity
+            style={[styles.micInputBtn, isListening ? styles.micInputBtnActive : undefined]}
+            onPress={toggleListening}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={isListening ? 'stop' : 'mic'}
+              size={isListening ? 18 : 20}
+              color={isListening ? Colors.neutral.white : Colors.primary.main}
+            />
+          </TouchableOpacity>
+
           <TextInput
-            style={styles.inputField}
-            placeholder={isHi ? 'यहाँ अपना प्रश्न लिखें...' : 'Ask anything about your farm...'}
-            placeholderTextColor={Colors.neutral.textMuted}
+            style={[styles.inputField, isListening ? styles.inputFieldListening : undefined]}
+            placeholder={
+              isListening
+                ? (isHi ? '🎤 बोलिए... (माइक दोबारा दबाने पर भेजेगा)' : '🎤 Speak... (Tap mic again to send)')
+                : (isHi ? 'माइक दबाकर बोलें या यहाँ लिखें...' : 'Tap mic to speak or type here...')
+            }
+            placeholderTextColor={isListening ? Colors.accent.terracotta : Colors.neutral.textMuted}
             value={inputQuery}
             onChangeText={setInputQuery}
             onSubmitEditing={() => handleSend()}
@@ -508,6 +665,21 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.neutral.border,
     gap: Spacing.sm,
   },
+  micInputBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary.subtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary.light + '40',
+  },
+  micInputBtnActive: {
+    backgroundColor: Colors.accent.terracotta,
+    borderColor: Colors.accent.terracotta,
+    ...Shadows.glow,
+  },
   inputField: {
     flex: 1,
     backgroundColor: Colors.neutral.surfaceMuted,
@@ -519,6 +691,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.neutral.border,
   },
+  inputFieldListening: {
+    backgroundColor: Colors.accent.terracottaBg,
+    borderColor: Colors.accent.terracottaBorder,
+    borderWidth: 1.5,
+  },
   sendBtn: {
     width: 44,
     height: 44,
@@ -529,5 +706,48 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: Colors.neutral.surfaceMuted,
+  },
+  listeningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary.dark,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm + 2,
+    gap: Spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.primary.light,
+  },
+  listeningPulseCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.accent.terracotta,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listeningTextWrapper: {
+    flex: 1,
+  },
+  listeningTitle: {
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: '800',
+    color: Colors.neutral.white,
+    letterSpacing: -0.2,
+  },
+  listeningSub: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.primary.subtle,
+    marginTop: 1,
+  },
+  stopListeningBtn: {
+    backgroundColor: Colors.neutral.white,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: BorderRadius.full,
+  },
+  stopListeningText: {
+    fontSize: Typography.fontSizes.xs,
+    fontWeight: '800',
+    color: Colors.primary.dark,
   },
 });

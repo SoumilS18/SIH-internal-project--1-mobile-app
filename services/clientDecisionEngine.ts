@@ -5,12 +5,15 @@
  */
 
 import { ALL_INDIAN_DISTRICTS } from '@/lib/districtsCatalog';
+import { getSeasonWeeksCount, getWeeklyActionPlan } from '@/lib/seasonalActionPlans';
 import type {
   FarmDecisionRequest,
   FarmDecisionResponse,
   CropEvaluationItem,
   AllocatedCropItem,
   ScenarioItem,
+  DailyAction,
+  CropAllocation,
 } from '@/types/farm';
 
 interface BaseCropData {
@@ -360,5 +363,46 @@ export function calculateClientFarmDecision(request: FarmDecisionRequest): FarmD
     },
     alerts: [],
     scenarios,
+    calendar: (() => {
+      const totalSeasonWeeks = getSeasonWeeksCount(request.season as any);
+      const primaryCropName = allocatedList[0]?.crop_name || 'Soybean';
+      const allActions: DailyAction[] = [];
+      for (let w = 1; w <= totalSeasonWeeks; w++) {
+        const wPlan = getWeeklyActionPlan(request.season as any, w, 'en', [primaryCropName]);
+        wPlan.days.forEach((d) => {
+          allActions.push({
+            day_number: d.dayOfSeason,
+            week_number: w,
+            title: d.title,
+            description: d.desc,
+            category: (d.category === 'prep'
+              ? 'monitoring'
+              : d.category === 'protection'
+              ? 'pest'
+              : d.category) as any,
+            critical: d.category === 'irrigation' || d.category === 'protection' || d.category === 'sowing',
+            inputs:
+              d.category === 'nutrient'
+                ? [{ name: 'Neem-Coated Urea', quantity_per_acre: 25, unit: 'kg' }]
+                : d.category === 'protection'
+                ? [{ name: 'Neem Oil (1500 ppm)', quantity_per_acre: 1, unit: 'L' }]
+                : [],
+          });
+        });
+      }
+      return {
+        total_weeks: totalSeasonWeeks,
+        actions: allActions,
+      };
+    })(),
+    allocations: allocatedList.map((a) => ({
+      crop_id: a.crop_name.toLowerCase(),
+      crop_name: a.crop_name,
+      allocated_acres: a.allocated_acres,
+      expected_yield_kg: Math.round(a.expected_yield_qtl_acre * a.allocated_acres * 100),
+      expected_revenue_inr: Math.round(a.total_revenue_inr),
+      expected_net_profit_inr: Math.round(a.net_profit_inr),
+      expected_roi_percent: Math.round(a.roi_pct),
+    })),
   };
 }

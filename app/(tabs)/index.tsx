@@ -25,12 +25,21 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { getItem, setItem, STORAGE_KEYS } from '@/lib/storage';
 import { getLocalizedCropName } from '@/i18n/cropNames';
 import { runAutonomousSentinelCycle } from '@/services/autonomousSentinel';
+import {
+  loadPlanExecutionState,
+  savePlanExecutionState,
+  calculatePlanProgress,
+  startPlanExecution,
+  toggleTaskCompletion,
+  delayTask,
+} from '@/lib/planProgress';
+import { getSeasonWeeksCount } from '@/lib/seasonalActionPlans';
 import type {
   FarmDecisionResponse,
   SentinelAnalysisResult,
-  PlanProgress,
   DailyAction,
 } from '@/types/farm';
+import type { PlanExecutionState, PlanProgressInfo } from '@/types/planLifecycle';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -41,25 +50,19 @@ export default function HomeScreen() {
   const [decision, setDecision] = useState<FarmDecisionResponse | null>(null);
   const [sentinelAnalysis, setSentinelAnalysis] = useState<SentinelAnalysisResult | null>(null);
   const [isDelayModalOpen, setIsDelayModalOpen] = useState(false);
-
-  const [progress, setProgress] = useState<PlanProgress>({
-    currentDay: 8,
-    currentWeek: 2,
-    totalWeeks: 8,
-    completedDays: [1, 2, 3, 4, 5, 6, 7],
-    delayedTasks: [],
-    todayTask: {
-      day_number: 8,
-      week_number: 2,
-      title: 'Top-Dress Nitrogen & Bio-Stimulant',
-      description: 'Apply split dose of nitrogen (Urea / Bio-NPK) along the root zone before scheduled evening irrigation.',
-      category: 'nutrient',
-      critical: true,
-      inputs: [
-        { name: 'Bio-NPK Consortium', quantity_per_acre: 1.5, unit: 'liters' },
-        { name: 'Neem-Coated Urea', quantity_per_acre: 22, unit: 'kg' },
-      ],
-    },
+  const [planState, setPlanState] = useState<PlanExecutionState | null>(null);
+  const [progressInfo, setProgressInfo] = useState<PlanProgressInfo>({
+    isStarted: false,
+    startDate: null,
+    currentDay: 1,
+    currentWeek: 1,
+    totalDays: 126,
+    totalWeeks: 18,
+    isCompleted: false,
+    todayTask: null,
+    planStatus: 'NOT_STARTED',
+    statusLabelEn: 'Not Started',
+    statusLabelHi: 'प्रारंभ नहीं हुआ',
   });
 
   const loadHomeData = useCallback(async () => {
@@ -72,25 +75,15 @@ export default function HomeScreen() {
         setDecision(savedDecision);
       }
 
-      const savedProgress = await getItem<PlanProgress>(STORAGE_KEYS.PLAN_PROGRESS, null);
-      if (savedProgress) {
-        setProgress(savedProgress);
-      } else if (savedDecision && savedDecision.calendar && savedDecision.calendar.actions.length > 0) {
-        const todayAction =
-          savedDecision.calendar.actions.find((a: DailyAction) => a.day_number === 8) ||
-          savedDecision.calendar.actions[0];
+      const pState = await loadPlanExecutionState();
+      setPlanState(pState);
 
-        const initialProgress: PlanProgress = {
-          currentDay: todayAction?.day_number || 1,
-          currentWeek: todayAction?.week_number || 1,
-          totalWeeks: savedDecision.calendar.total_weeks || 8,
-          completedDays: [1, 2, 3, 4, 5, 6, 7],
-          delayedTasks: [],
-          todayTask: todayAction || null,
-        };
-        setProgress(initialProgress);
-        await setItem(STORAGE_KEYS.PLAN_PROGRESS, initialProgress);
-      }
+      const season = (savedDecision?.request?.season as any) || 'Kharif';
+      const cropNames = savedDecision?.allocated_crops?.map((c) => c.crop_name) || [
+        savedDecision?.request?.primary_crop_id || 'Soybean',
+      ];
+      const pInfo = calculatePlanProgress(pState, season, cropNames, language as any);
+      setProgressInfo(pInfo);
 
       // Check Sentinel live status
       const savedSentinel = await getItem<SentinelAnalysisResult>(
@@ -106,7 +99,7 @@ export default function HomeScreen() {
     } catch (err) {
       console.warn('[Home] Load error:', err);
     }
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     loadHomeData();
@@ -122,48 +115,82 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
+  const handleStartPlan = async () => {
+    if (!planState) return;
+    const startedState = startPlanExecution(planState);
+    setPlanState(startedState);
+    await savePlanExecutionState(startedState);
+
+    const season = (decision?.request?.season as any) || 'Kharif';
+    const cropNames = decision?.allocated_crops?.map((c) => c.crop_name) || [
+      decision?.request?.primary_crop_id || 'Soybean',
+    ];
+    const updatedInfo = calculatePlanProgress(startedState, season, cropNames, language as any);
+    setProgressInfo(updatedInfo);
+  };
+
   const handleCompleteTodayTask = async () => {
-    if (!progress.todayTask) return;
-    const isAlreadyDone = progress.completedDays.includes(progress.currentDay);
-    const updatedCompleted = isAlreadyDone
-      ? progress.completedDays.filter((d: number) => d !== progress.currentDay)
-      : [...progress.completedDays, progress.currentDay];
+    if (!planState) return;
+    const updatedState = toggleTaskCompletion(planState, progressInfo.currentDay);
+    setPlanState(updatedState);
+    await savePlanExecutionState(updatedState);
 
-    const updatedProgress: PlanProgress = {
-      ...progress,
-      completedDays: updatedCompleted,
-    };
-
-    setProgress(updatedProgress);
-    await setItem(STORAGE_KEYS.PLAN_PROGRESS, updatedProgress);
+    const season = (decision?.request?.season as any) || 'Kharif';
+    const cropNames = decision?.allocated_crops?.map((c) => c.crop_name) || [
+      decision?.request?.primary_crop_id || 'Soybean',
+    ];
+    const updatedInfo = calculatePlanProgress(updatedState, season, cropNames, language as any);
+    setProgressInfo(updatedInfo);
   };
 
   const handleSubmitDelay = async (days: number, reason: string) => {
     setIsDelayModalOpen(false);
-    if (!progress.todayTask) return;
+    if (!planState) return;
 
-    const newDelayedTask = {
-      day_number: progress.currentDay,
-      task_title: progress.todayTask.title,
-      delay_days: days,
-      reason,
-      delayed_at: new Date().toISOString(),
-    };
+    const updatedState = delayTask(planState, progressInfo.currentDay, reason, days);
+    setPlanState(updatedState);
+    await savePlanExecutionState(updatedState);
 
-    const updatedProgress: PlanProgress = {
-      ...progress,
-      delayedTasks: [...(progress.delayedTasks || []), newDelayedTask],
-    };
-
-    setProgress(updatedProgress);
-    await setItem(STORAGE_KEYS.PLAN_PROGRESS, updatedProgress);
+    const season = (decision?.request?.season as any) || 'Kharif';
+    const cropNames = decision?.allocated_crops?.map((c) => c.crop_name) || [
+      decision?.request?.primary_crop_id || 'Soybean',
+    ];
+    const updatedInfo = calculatePlanProgress(updatedState, season, cropNames, language as any);
+    setProgressInfo(updatedInfo);
   };
 
   const farmerDisplayName =
     profile?.full_name || (isDemo ? 'Farmer Ramesh' : user?.email?.split('@')[0] || 'Farmer');
   const cropRaw = decision?.request.primary_crop_id || decision?.allocated_crops?.[0]?.crop_name || 'soybean';
   const localizedCrop = getLocalizedCropName(cropRaw, language);
-  const isTodayDone = progress.completedDays.includes(progress.currentDay);
+  const isTodayDone = planState?.completedDays?.includes(progressInfo.currentDay) || false;
+
+  const activeDailyAction: DailyAction | null = progressInfo.todayTask
+    ? {
+        day_number: progressInfo.todayTask.dayOfSeason,
+        week_number: progressInfo.currentWeek,
+        title: progressInfo.todayTask.title,
+        description: progressInfo.todayTask.desc,
+        category: (progressInfo.todayTask.category === 'prep'
+          ? 'monitoring'
+          : progressInfo.todayTask.category === 'protection'
+          ? 'pest'
+          : progressInfo.todayTask.category) as any,
+        critical:
+          progressInfo.todayTask.category === 'irrigation' ||
+          progressInfo.todayTask.category === 'protection' ||
+          progressInfo.todayTask.category === 'sowing',
+        inputs:
+          progressInfo.todayTask.category === 'nutrient'
+            ? [
+                { name: 'Neem-Coated Urea', quantity_per_acre: 25, unit: 'kg' },
+                { name: 'Zinc Sulfate (21%)', quantity_per_acre: 5, unit: 'kg' },
+              ]
+            : progressInfo.todayTask.category === 'protection'
+            ? [{ name: 'Neem Oil (1500 ppm)', quantity_per_acre: 1, unit: 'L' }]
+            : [],
+      }
+    : null;
 
   return (
     <View style={styles.container}>
@@ -171,7 +198,7 @@ export default function HomeScreen() {
         title="AgriOptima AI"
         subtitle={
           decision?.request.district_name
-            ? `${decision.request.district_name}, ${decision.request.state_name || 'India'}`
+            ? `${decision.request.district_name}, ${decision.request.state_name || 'India'} (${decision.request.season || 'Kharif'})`
             : 'Autonomous Decision Intelligence'
         }
       />
@@ -191,13 +218,17 @@ export default function HomeScreen() {
         {/* 1. GREETING & JOURNEY CONTEXT */}
         <View style={styles.greetingSection}>
           <View style={styles.greetingLeft}>
-            <Text style={styles.greetingPrefix}>Welcome back,</Text>
+            <Text style={styles.greetingPrefix}>
+              {language === 'hi' ? 'स्वागत है,' : 'Welcome back,'}
+            </Text>
             <Text style={styles.farmerName}>{farmerDisplayName}</Text>
           </View>
 
           <View style={styles.journeyPill}>
             <Text style={styles.journeyPillText}>
-              Week {progress.currentWeek} of {progress.totalWeeks}
+              {!progressInfo.isStarted
+                ? (language === 'hi' ? `पूर्वावलोकन · ${progressInfo.totalWeeks} सप्ताह` : `Preview · ${progressInfo.totalWeeks} Weeks`)
+                : (language === 'hi' ? `दिन ${progressInfo.currentDay} · सप्ताह ${progressInfo.currentWeek}/${progressInfo.totalWeeks}` : `Day ${progressInfo.currentDay} · Week ${progressInfo.currentWeek} of ${progressInfo.totalWeeks}`)}
             </Text>
           </View>
         </View>
@@ -205,10 +236,12 @@ export default function HomeScreen() {
         {/* 2. HERO TODAY'S TASK */}
         <View style={styles.section}>
           <TodayTaskCard
-            task={progress.todayTask}
-            dayNumber={progress.currentDay}
+            task={activeDailyAction}
+            dayNumber={progressInfo.currentDay}
             isCompleted={isTodayDone}
             cropName={localizedCrop}
+            isStarted={progressInfo.isStarted}
+            onStartPlan={handleStartPlan}
             onComplete={handleCompleteTodayTask}
             onDelayOrReport={() => setIsDelayModalOpen(true)}
             onPressDetails={() => router.push('/(tabs)/plan')}
@@ -280,8 +313,8 @@ export default function HomeScreen() {
       {/* Task Delay & Issue Modal */}
       <TaskDelayModal
         visible={isDelayModalOpen}
-        dayNumber={progress.currentDay}
-        taskTitle={progress.todayTask?.title || 'Daily Task'}
+        dayNumber={progressInfo.currentDay}
+        taskTitle={activeDailyAction?.title || 'Daily Task'}
         onClose={() => setIsDelayModalOpen(false)}
         onSubmitDelay={handleSubmitDelay}
       />
