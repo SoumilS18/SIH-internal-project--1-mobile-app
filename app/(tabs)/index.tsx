@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 import { AppHeader } from '@/components/common/AppHeader';
 import { TodayTaskCard } from '@/components/home/TodayTaskCard';
@@ -273,18 +274,25 @@ export default function HomeScreen() {
         {decision ? (
           <View style={styles.snapshotSection}>
             <View style={styles.snapshotHeader}>
-              <Text style={styles.snapshotHeading}>Farm Snapshot</Text>
+              <Text style={styles.snapshotHeading}>
+                {language === 'hi' ? 'खेत सारांश (Farm Snapshot)' : 'Farm Telemetry Snapshot'}
+              </Text>
               <TouchableOpacity
                 onPress={() => router.push('/plan/details')}
                 activeOpacity={0.7}
               >
-                <Text style={styles.snapshotLink}>View Plan Details →</Text>
+                <Text style={styles.snapshotLink}>
+                  {language === 'hi' ? 'विस्तृत योजना →' : 'Plan Details →'}
+                </Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.snapshotGrid}>
               <View style={styles.snapshotItem}>
-                <Text style={styles.snapshotLabel}>Land Area</Text>
+                <Ionicons name="expand-outline" size={14} color={Colors.primary.main} style={{ marginBottom: 2 }} />
+                <Text style={styles.snapshotLabel}>
+                  {language === 'hi' ? 'कुल रकबा' : 'Land Area'}
+                </Text>
                 <Text style={styles.snapshotValue}>
                   {decision.request.land_size_acres} Acres
                 </Text>
@@ -293,15 +301,23 @@ export default function HomeScreen() {
               <View style={styles.snapshotDivider} />
 
               <View style={styles.snapshotItem}>
-                <Text style={styles.snapshotLabel}>Primary Crop</Text>
-                <Text style={styles.snapshotValue}>{localizedCrop}</Text>
+                <Ionicons name="leaf-outline" size={14} color={Colors.primary.main} style={{ marginBottom: 2 }} />
+                <Text style={styles.snapshotLabel}>
+                  {language === 'hi' ? 'मुख्य फसल' : 'Crop'}
+                </Text>
+                <Text style={styles.snapshotValue} numberOfLines={1}>
+                  {localizedCrop}
+                </Text>
               </View>
 
               <View style={styles.snapshotDivider} />
 
               <View style={styles.snapshotItem}>
-                <Text style={styles.snapshotLabel}>Irrigation</Text>
-                <Text style={styles.snapshotValue}>
+                <Ionicons name="water-outline" size={14} color={Colors.accent.terracotta} style={{ marginBottom: 2 }} />
+                <Text style={styles.snapshotLabel}>
+                  {language === 'hi' ? 'सिंचाई प्रणाली' : 'Irrigation'}
+                </Text>
+                <Text style={styles.snapshotValue} numberOfLines={1}>
                   {decision.request.irrigation_type}
                 </Text>
               </View>

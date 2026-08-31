@@ -208,8 +208,21 @@ export default function MoreScreen() {
           activeOpacity={0.75}
         >
           <Ionicons name="log-out-outline" size={18} color={Colors.status.danger} />
-          <Text style={styles.signOutText}>Sign Out of AgriOptima AI</Text>
+          <Text style={styles.signOutText}>
+            {language === 'hi' ? 'लॉग आउट (Sign Out)' : 'Sign Out of AgriOptima AI'}
+          </Text>
         </TouchableOpacity>
+
+        {/* 5. APP METADATA & BUILD VERSION */}
+        <View style={styles.versionContainer}>
+          <View style={styles.versionRow}>
+            <Ionicons name="leaf" size={14} color={Colors.primary.main} />
+            <Text style={styles.versionTitle}>AgriOptima AI</Text>
+          </View>
+          <Text style={styles.versionSub}>
+            Autonomous Indic Farm Advisory · Version 1.0.0 (Preview APK)
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -328,5 +341,27 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSizes.sm,
     fontWeight: '700',
     color: Colors.status.danger,
+  },
+  versionContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.xl,
+    paddingVertical: Spacing.md,
+    gap: 4,
+  },
+  versionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  versionTitle: {
+    fontSize: Typography.fontSizes.xs + 1,
+    fontWeight: '800',
+    color: Colors.primary.dark,
+    letterSpacing: 0.2,
+  },
+  versionSub: {
+    fontSize: 11,
+    color: Colors.neutral.textMuted,
   },
 });
