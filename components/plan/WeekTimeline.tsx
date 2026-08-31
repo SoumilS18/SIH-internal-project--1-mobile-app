@@ -43,7 +43,7 @@ export const WeekTimeline: React.FC<WeekTimelineProps> = ({
       {/* 1. HORIZONTAL WEEK SELECTOR CHIPS */}
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={false}
+        showsHorizontalScrollIndicator={true}
         contentContainerStyle={styles.weekSelector}
       >
         {weeksArray.map((week) => {
@@ -192,6 +192,7 @@ const styles = StyleSheet.create({
   },
   weekSelector: {
     paddingVertical: Spacing.xs,
+    paddingBottom: Spacing.sm,
     gap: Spacing.xs + 2,
     marginBottom: Spacing.md,
   },

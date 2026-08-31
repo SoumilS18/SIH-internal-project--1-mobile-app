@@ -25,13 +25,14 @@ export const VoiceBar: React.FC<VoiceBarProps> = ({
   onTapMic,
   onSelectQuickQuestion,
 }) => {
-  const { t } = useLanguage();
+  const { language } = useLanguage();
+  const isHi = language === 'hi';
 
   const quickQuestions = [
-    { icon: 'water-outline', text: t('voice.quick1') || 'Should I irrigate today?' },
-    { icon: 'cloud-outline', text: t('voice.quick2') || 'Is rain expected tomorrow?' },
-    { icon: 'flask-outline', text: t('voice.quick3') || 'What fertilizer should I apply next?' },
-    { icon: 'shield-checkmark-outline', text: t('voice.quick4') || 'How to prevent pest infestation?' },
+    { icon: 'water-outline', text: isHi ? 'क्या आज सिंचाई करें?' : 'Should I irrigate today?' },
+    { icon: 'cloud-outline', text: isHi ? 'कल बारिश की संभावना?' : 'Is rain expected tomorrow?' },
+    { icon: 'flask-outline', text: isHi ? 'अगली खाद कितनी डालें?' : 'What fertilizer to apply?' },
+    { icon: 'shield-checkmark-outline', text: isHi ? 'कीट नियंत्रण के उपाय?' : 'How to prevent pests?' },
   ];
 
   return (
