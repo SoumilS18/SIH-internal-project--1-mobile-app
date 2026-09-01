@@ -8,11 +8,17 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, View, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, BorderRadius, Shadows } from '@/constants/theme';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   const { t } = useLanguage();
+
+  // Dynamic bottom padding to ensure clearance on 3-button navigation bar phones and gesture bars
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 0);
+  const tabHeight = 62 + bottomInset;
 
   return (
     <Tabs
@@ -24,8 +30,8 @@ export default function TabLayout() {
           backgroundColor: Colors.neutral.white,
           borderTopColor: Colors.neutral.borderLight,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 88 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          height: tabHeight,
+          paddingBottom: Math.max(bottomInset, 8),
           paddingTop: 8,
           ...Shadows.md,
         },
